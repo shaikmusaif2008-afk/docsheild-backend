@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from typing import Dict, Any, Optional, List
 from pathlib import Path
 
-from fastapi import FastAPI, UploadFile, File, Form, Depends, HTTPException, status, Query
+from fastapi import FastAPI, APIRouter, UploadFile, File, Form, Depends, HTTPException, status, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
@@ -44,6 +44,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+api_router = APIRouter()
 
 # Startup Initialization
 @app.on_event("startup")
@@ -86,7 +88,7 @@ class WatchlistEntryRequest(BaseModel):
 class ForgotPasswordRequest(BaseModel):
     work_id: str
 
-@app.post("/api/auth/login")
+@api_router.post("/auth/login")
 def login(req: LoginRequest):
     work_id = req.username.strip().lower()
     clean_user = work_id.split('@')[0]
@@ -152,21 +154,21 @@ def login(req: LoginRequest):
         }
     }
 
-@app.post("/api/auth/forgot-password")
+@api_router.post("/auth/forgot-password")
 def forgot_password(req: ForgotPasswordRequest):
     return {
         "status": "success",
         "message": "Recovery request submitted. An authorized administrator will review your credentials."
     }
 
-@app.get("/api/auth/me")
+@api_router.get("/auth/me")
 def get_me(officer: Dict[str, Any] = Depends(get_current_officer)):
     officer["email"] = "officer@docshield.ai"
     return {"officer": officer}
 
 
 # ----------------- DASHBOARD & METRICS -----------------
-@app.get("/api/stats/dashboard")
+@api_router.get("/stats/dashboard")
 def get_dashboard_stats():
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -212,7 +214,7 @@ def get_dashboard_stats():
     }
 
 # ----------------- HEALTH & SYSTEM DIAGNOSTICS -----------------
-@app.get("/api/health")
+@api_router.get("/health")
 def get_health_status():
     return {
         "status": "ok",
@@ -221,7 +223,7 @@ def get_health_status():
         "version": "3.1.0"
     }
 
-@app.get("/api/ocr/health")
+@api_router.get("/ocr/health")
 def get_ocr_health_status():
     return {
         "status": "ready",
@@ -232,7 +234,7 @@ def get_ocr_health_status():
     }
 
 # ----------------- SCREENING WORKFLOW ENDPOINTS -----------------
-@app.post("/api/screening/create")
+@api_router.post("/screening/create")
 def create_screening(req: ScreeningCreateRequest, officer: Dict[str, Any] = Depends(get_current_officer)):
     case_id = f"CASE-2026-{uuid.uuid4().hex[:4].upper()}"
     timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
@@ -285,7 +287,7 @@ def create_screening(req: ScreeningCreateRequest, officer: Dict[str, Any] = Depe
         "mode": "DEMO_SCENARIO" if req.scenario_hint else "LIVE_UPLOAD"
     }
 
-@app.post("/api/screening/upload")
+@api_router.post("/screening/upload")
 async def upload_document_image(
     case_id: str = Form(...),
     doc_type: str = Form("Passport"),
@@ -347,7 +349,7 @@ async def upload_document_image(
         "face_detected": face_detected
     }
 
-@app.post("/api/ocr/extract")
+@api_router.post("/ocr/extract")
 def run_ocr(
     case_id: str = Form(...),
     scenario_hint: Optional[str] = Form(None),
@@ -426,7 +428,7 @@ def run_ocr(
     }
 
 
-@app.post("/api/ocr/confirm")
+@api_router.post("/ocr/confirm")
 def confirm_ocr(req: OcrConfirmRequest, officer: Dict[str, Any] = Depends(get_current_officer)):
     person_name = req.extracted_data.get("full_name", {}).get("value", "Not detected")
     doc_number = req.extracted_data.get("document_number", {}).get("value", "Not detected")
@@ -447,7 +449,7 @@ def confirm_ocr(req: OcrConfirmRequest, officer: Dict[str, Any] = Depends(get_cu
 
     return {"status": "success", "message": "OCR data confirmed and updated."}
 
-@app.post("/api/document/validate")
+@api_router.post("/document/validate")
 def run_validation(
     case_id: str = Form(...),
     officer: Dict[str, Any] = Depends(get_current_officer)
@@ -480,7 +482,7 @@ def run_validation(
 
     return {"case_id": case_id, "validation_data": val_result}
 
-@app.post("/api/tampering/analyze")
+@api_router.post("/tampering/analyze")
 def run_tampering_analysis(
     case_id: str = Form(...),
     scenario_hint: Optional[str] = Form(None),
@@ -517,7 +519,7 @@ def run_tampering_analysis(
 
     return {"case_id": case_id, "tampering_data": tamper_result, "ela_image_path": ela_rel}
 
-@app.post("/api/face/verify")
+@api_router.post("/face/verify")
 async def run_face_verification(
     case_id: str = Form(...),
     scenario_hint: Optional[str] = Form(None),
@@ -572,7 +574,7 @@ async def run_face_verification(
         "face_live_path": live_face_rel
     }
 
-@app.post("/api/risk/calculate")
+@api_router.post("/risk/calculate")
 def run_risk_assessment(
     case_id: str = Form(...),
     officer: Dict[str, Any] = Depends(get_current_officer)
@@ -620,7 +622,7 @@ def run_risk_assessment(
 
     return {"case_id": case_id, "risk_data": risk_result}
 
-@app.post("/api/review")
+@api_router.post("/review")
 def submit_officer_review(req: OfficerReviewRequest, officer: Dict[str, Any] = Depends(get_current_officer)):
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -646,7 +648,7 @@ def submit_officer_review(req: OfficerReviewRequest, officer: Dict[str, Any] = D
 
     return {"status": "success", "message": "Officer decision and remarks recorded in audit trail."}
 
-@app.get("/api/screening/{case_id}")
+@api_router.get("/screening/{case_id}")
 def get_screening_case(case_id: str):
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -666,7 +668,7 @@ def get_screening_case(case_id: str):
                 pass
     return data
 
-@app.get("/api/screenings")
+@api_router.get("/screenings")
 def list_screenings(
     query: Optional[str] = None,
     status_filter: Optional[str] = None,
@@ -707,7 +709,7 @@ class SaveCompletedScreeningRequest(BaseModel):
     validation_data: Optional[Dict[str, Any]] = None
     tampering_data: Optional[Dict[str, Any]] = None
 
-@app.post("/api/screening/save-completed")
+@api_router.post("/screening/save-completed")
 def save_completed_screening(req: SaveCompletedScreeningRequest, officer: Dict[str, Any] = Depends(get_current_officer)):
     timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
     conn = get_db_connection()
@@ -750,7 +752,7 @@ def save_completed_screening(req: SaveCompletedScreeningRequest, officer: Dict[s
 
     return {"status": "success", "message": f"Screening case '{req.case_id}' recorded successfully."}
 
-@app.get("/api/dashboard/stats")
+@api_router.get("/dashboard/stats")
 def get_dashboard_stats():
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -845,7 +847,7 @@ def get_dashboard_stats():
         }
     }
 
-@app.get("/api/dashboard/recent")
+@api_router.get("/dashboard/recent")
 def get_dashboard_recent(limit: int = 10):
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -860,7 +862,7 @@ def get_dashboard_recent(limit: int = 10):
     conn.close()
     return rows
 
-@app.get("/api/dashboard/domain-stats")
+@api_router.get("/dashboard/domain-stats")
 def get_dashboard_domain_stats():
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -877,7 +879,7 @@ def get_dashboard_domain_stats():
     conn.close()
     return rows
 
-@app.get("/api/dashboard/document-stats")
+@api_router.get("/dashboard/document-stats")
 def get_dashboard_document_stats():
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -895,7 +897,7 @@ def get_dashboard_document_stats():
     return rows
 
 # ----------------- AUDIT TRAIL ENDPOINTS -----------------
-@app.get("/api/audit-log")
+@api_router.get("/audit-log")
 def get_audit_trail(case_id: Optional[str] = None, limit: int = 100):
     logs = get_all_audit_logs(case_id=case_id, limit=limit)
     integrity = verify_audit_integrity()
@@ -905,7 +907,7 @@ def get_audit_trail(case_id: Optional[str] = None, limit: int = 100):
     }
 
 # ----------------- DEMO WATCHLIST DATABASE -----------------
-@app.get("/api/database")
+@api_router.get("/database")
 def get_watchlist_records(query: Optional[str] = None):
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -917,7 +919,7 @@ def get_watchlist_records(query: Optional[str] = None):
     conn.close()
     return rows
 
-@app.post("/api/database")
+@api_router.post("/database")
 def add_or_update_watchlist_record(req: WatchlistEntryRequest, officer: Dict[str, Any] = Depends(get_current_officer)):
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -931,7 +933,7 @@ def add_or_update_watchlist_record(req: WatchlistEntryRequest, officer: Dict[str
     return {"status": "success", "message": f"Demo Database record '{req.doc_number}' updated."}
 
 # ----------------- PDF REPORT DOWNLOAD -----------------
-@app.get("/api/report/{case_id}")
+@api_router.get("/report/{case_id}")
 def download_case_report(case_id: str):
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -954,7 +956,7 @@ def download_case_report(case_id: str):
     )
 
 # ----------------- IMAGE ASSET STREAMING -----------------
-@app.get("/api/image/{subpath:path}")
+@api_router.get("/image/{subpath:path}")
 def serve_image(subpath: str):
     image_path = BASE_DIR / "data" / subpath
     if not image_path.exists():
@@ -965,6 +967,10 @@ def serve_image(subpath: str):
                 raise HTTPException(status_code=404, detail="Image file not found")
             
     return FileResponse(str(image_path))
+
+# Include API router with dual prefix support (for standard /api/ calls and Vercel stripped / paths)
+app.include_router(api_router, prefix="/api")
+app.include_router(api_router, prefix="")
 
 # ----------------- STATIC FRONTEND SERVING -----------------
 @app.get("/")
