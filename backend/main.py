@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from typing import Dict, Any, Optional, List
 from pathlib import Path
 
-from fastapi import FastAPI, APIRouter, UploadFile, File, Form, Depends, HTTPException, status, Query
+from fastapi import FastAPI, APIRouter, Request, UploadFile, File, Form, Depends, HTTPException, status, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
@@ -44,6 +44,33 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ASGI Middleware to normalize Vercel serverless request paths and proxy rewrites
+@app.middleware("http")
+async def vercel_routing_middleware(request: Request, call_next):
+    raw_path = request.scope.get("path", "")
+    
+    # 1. Normalize trailing slash for API routes to avoid unnecessary redirects
+    if raw_path != "/" and raw_path.endswith("/") and not raw_path.startswith("/static"):
+        raw_path = raw_path.rstrip("/")
+        request.scope["path"] = raw_path
+
+    # 2. Check for Vercel forwarding headers if path was rewritten to index.py
+    x_forwarded_uri = request.headers.get("x-forwarded-uri")
+    x_matched_path = request.headers.get("x-matched-path")
+    
+    if raw_path in ["/api/index.py", "/index.py", "api/index.py", "index.py"]:
+        if x_forwarded_uri:
+            request.scope["path"] = x_forwarded_uri.split("?")[0].rstrip("/") or "/"
+        elif x_matched_path:
+            request.scope["path"] = x_matched_path.split("?")[0].rstrip("/") or "/"
+    elif "/index.py" in raw_path:
+        cleaned = raw_path.replace("/api/index.py", "").replace("/index.py", "").rstrip("/")
+        if not cleaned.startswith("/"):
+            cleaned = "/" + cleaned
+        request.scope["path"] = cleaned
+
+    return await call_next(request)
 
 api_router = APIRouter()
 
