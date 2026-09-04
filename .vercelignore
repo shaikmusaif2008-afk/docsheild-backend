@@ -1,0 +1,10 @@
+__pycache__
+*.pyc
+.git
+.gitignore
+.env
+data/uploads/*
+!data/samples/*
+recovered_step1007
+node_modules
+.pytest_cache
