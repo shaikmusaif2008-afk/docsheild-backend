@@ -967,8 +967,31 @@ def serve_image(subpath: str):
     return FileResponse(str(image_path))
 
 # ----------------- STATIC FRONTEND SERVING -----------------
+@app.get("/")
+@app.get("/index.html")
+def serve_index():
+    for p in [BASE_DIR / "public" / "index.html", FRONTEND_DIR / "index.html", BASE_DIR / "frontend" / "index.html"]:
+        if p.exists():
+            return FileResponse(str(p), media_type="text/html")
+    return JSONResponse(status_code=404, content={"detail": "Frontend index.html not found"})
+
+@app.get("/styles.css")
+def serve_styles():
+    for p in [BASE_DIR / "public" / "styles.css", FRONTEND_DIR / "styles.css", BASE_DIR / "frontend" / "styles.css"]:
+        if p.exists():
+            return FileResponse(str(p), media_type="text/css")
+    return JSONResponse(status_code=404, content={"detail": "styles.css not found"})
+
+@app.get("/app.js")
+def serve_app_js():
+    for p in [BASE_DIR / "public" / "app.js", FRONTEND_DIR / "app.js", BASE_DIR / "frontend" / "app.js"]:
+        if p.exists():
+            return FileResponse(str(p), media_type="application/javascript")
+    return JSONResponse(status_code=404, content={"detail": "app.js not found"})
+
 try:
-    if FRONTEND_DIR.exists():
-        app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend")
+    static_dir = BASE_DIR / "public" if (BASE_DIR / "public").exists() else FRONTEND_DIR
+    if static_dir.exists():
+        app.mount("/static", StaticFiles(directory=str(static_dir), html=True), name="frontend_static")
 except Exception as e:
     print(f"StaticFiles mounting notice: {e}")

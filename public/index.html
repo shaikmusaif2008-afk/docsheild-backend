@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DocShield AI — Security Command | AI Identity & Document Screening</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              darkest: '#050811',
+              dark: '#070b16',
+              sidebar: '#070b14',
+              surface: '#0d1424',
+              surfaceHover: '#131e36',
+              card: '#0c1322',
+              border: '#152033',
+              borderLight: '#1d2e4a',
+              cyan: '#00f0ff',
+              cyanGlow: '#0ea5e9',
+              blue: '#38bdf8',
+              accentBlue: '#0284c7',
+              emerald: '#10b981',
+              amber: '#f59e0b',
+              rose: '#f43f5e'
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="bg-[#050811] text-slate-100 antialiased selection:bg-cyan-500 selection:text-black min-h-screen">
+  
+  <div id="app" class="min-h-screen flex flex-col">
+    <!-- Dynamic SPA Content rendered via app.js -->
+    <div class="flex-1 flex items-center justify-center p-8">
+      <div class="flex flex-col items-center space-y-4">
+        <div class="w-12 h-12 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin"></div>
+        <p class="text-slate-400 font-mono text-sm tracking-wider">INITIALIZING DOCSHIELD SECURITY COMMAND...</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Application Logic -->
+  <script src="app.js"></script>
+</body>
+</html>
