@@ -24,6 +24,7 @@ def generate_pdf_report(case_data: Dict[str, Any], output_filename: str) -> str:
     Branded as DocShield AI — Security Command.
     """
     output_path = str(REPORTS_DIR / output_filename)
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
     
     doc = SimpleDocTemplate(
         output_path,
@@ -81,7 +82,7 @@ def generate_pdf_report(case_data: Dict[str, Any], output_filename: str) -> str:
     header_table_data = [
         [
             Paragraph("<b>DOCSHIELD AI</b><br/><font size=8 color='#0284c7'><b>SECURITY COMMAND</b></font><br/><font size=7.5 color='#64748b'>AI IDENTITY &amp; DOCUMENT SCREENING PLATFORM</font>", header_title_style),
-            Paragraph(f"<b>CASE DOSSIER:</b> {esc(case_data.get('case_id', 'N/A'))}<br/><b>DATE:</b> {esc(case_data.get('created_at', datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')))}<br/><b>OFFICER:</b> {esc(case_data.get('officer_name', 'Security Officer'))}", normal_text)
+            Paragraph(f"<b>CASE DOSSIER:</b> {esc(case_data.get('case_id') or 'N/A')}<br/><b>DATE:</b> {esc(case_data.get('created_at') or datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC'))}<br/><b>OFFICER:</b> {esc(case_data.get('officer_name') or 'Security Officer')}", normal_text)
         ]
     ]
     
@@ -94,8 +95,13 @@ def generate_pdf_report(case_data: Dict[str, Any], output_filename: str) -> str:
     story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor("#0284c7"), spaceAfter=10))
     
     # 2. Risk Score & Three-Tier Status Banner
-    risk_score = case_data.get("overall_risk_score", 0)
-    status_label = case_data.get("status", "LIKELY GENUINE")
+    risk_score = case_data.get("overall_risk_score")
+    try:
+        risk_score = int(risk_score) if risk_score is not None else 0
+    except Exception:
+        risk_score = 0
+
+    status_label = str(case_data.get("status") or "LIKELY GENUINE").upper()
     
     if "GENUINE" in status_label or status_label == "VERIFIED":
         banner_bg = colors.HexColor("#ecfdf5")
@@ -133,21 +139,27 @@ def generate_pdf_report(case_data: Dict[str, Any], output_filename: str) -> str:
     story.append(Spacer(1, 10))
     
     # 3. Document & Person Profile
-    extracted = case_data.get("extracted_data", {})
+    extracted = case_data.get("extracted_data") or case_data.get("ocr_data") or {}
     if isinstance(extracted, str):
-        try: extracted = json.loads(extracted)
-        except Exception: extracted = {}
+        try:
+            extracted = json.loads(extracted) or {}
+        except Exception:
+            extracted = {}
+    if not isinstance(extracted, dict):
+        extracted = {}
         
     def get_f_val(k):
         v = extracted.get(k)
         if isinstance(v, dict):
-            return esc(f"{v.get('value', 'N/A')} ({v.get('confidence', 0)}%)")
+            val = v.get('value', 'N/A')
+            conf = v.get('confidence', 0)
+            return esc(f"{val} ({conf}%)" if conf else str(val))
         return esc(str(v) if v is not None else "N/A")
 
     story.append(Paragraph("1. Extracted Identity &amp; Document Records", section_heading))
     
     id_table_data = [
-        [Paragraph("<b>Full Name:</b>", bold_text), Paragraph(get_f_val("full_name"), normal_text), Paragraph("<b>Document Type:</b>", bold_text), Paragraph(esc(case_data.get("doc_type", "Passport")), normal_text)],
+        [Paragraph("<b>Full Name:</b>", bold_text), Paragraph(get_f_val("full_name"), normal_text), Paragraph("<b>Document Type:</b>", bold_text), Paragraph(esc(case_data.get("doc_type") or "Passport"), normal_text)],
         [Paragraph("<b>Document No:</b>", bold_text), Paragraph(get_f_val("document_number"), normal_text), Paragraph("<b>Nationality:</b>", bold_text), Paragraph(get_f_val("nationality"), normal_text)],
         [Paragraph("<b>Date of Birth:</b>", bold_text), Paragraph(get_f_val("dob"), normal_text), Paragraph("<b>Gender:</b>", bold_text), Paragraph(get_f_val("gender"), normal_text)],
         [Paragraph("<b>Issue Date:</b>", bold_text), Paragraph(get_f_val("issue_date"), normal_text), Paragraph("<b>Expiry Date:</b>", bold_text), Paragraph(get_f_val("expiry_date"), normal_text)],
@@ -169,10 +181,14 @@ def generate_pdf_report(case_data: Dict[str, Any], output_filename: str) -> str:
     # 3.5. Explainable Risk Score & Bases Derivation
     story.append(Paragraph("2. Explainable Risk Score &amp; Forensic Bases Derivation", section_heading))
     
-    factors_raw = case_data.get("risk_factors", [])
+    factors_raw = case_data.get("risk_factors") or []
     if isinstance(factors_raw, str):
-        try: factors_raw = json.loads(factors_raw)
-        except Exception: factors_raw = []
+        try:
+            factors_raw = json.loads(factors_raw) or []
+        except Exception:
+            factors_raw = []
+    if not isinstance(factors_raw, list):
+        factors_raw = []
 
     formula_text = f"0 (Base Score) + {risk_score} (Evaluated Signal Points) = {risk_score}/100"
     formula_box = Table([[
@@ -192,20 +208,52 @@ def generate_pdf_report(case_data: Dict[str, Any], output_filename: str) -> str:
     # 4. Multi-Factor Forensic & Biometric Verification
     story.append(Paragraph("3. Forensic &amp; Biometric Analysis Summary", section_heading))
     
-    tamper_data = case_data.get("tampering_data", {})
+    tamper_data = case_data.get("tampering_data") or {}
     if isinstance(tamper_data, str):
-        try: tamper_data = json.loads(tamper_data)
-        except Exception: tamper_data = {}
+        try:
+            tamper_data = json.loads(tamper_data) or {}
+        except Exception:
+            tamper_data = {}
+    if not isinstance(tamper_data, dict):
+        tamper_data = {}
         
-    face_data = case_data.get("face_data", {})
+    face_data = case_data.get("face_data") or {}
     if isinstance(face_data, str):
-        try: face_data = json.loads(face_data)
-        except Exception: face_data = {}
+        try:
+            face_data = json.loads(face_data) or {}
+        except Exception:
+            face_data = {}
+    if not isinstance(face_data, dict):
+        face_data = {}
         
-    val_data = case_data.get("validation_data", {})
+    val_data = case_data.get("validation_data") or {}
     if isinstance(val_data, str):
-        try: val_data = json.loads(val_data)
-        except Exception: val_data = {}
+        try:
+            val_data = json.loads(val_data) or {}
+        except Exception:
+            val_data = {}
+    if not isinstance(val_data, dict):
+        val_data = {}
+
+    tamper_summary = tamper_data.get("summary") or "Uniform compression across all regions."
+    if not isinstance(tamper_summary, str):
+        tamper_summary = str(tamper_summary)
+    if len(tamper_summary) > 90:
+        tamper_summary = tamper_summary[:90] + "..."
+
+    face_status = face_data.get("status") or ("MATCH_CONFIRMED" if face_data.get("face_match") else "UNAVAILABLE")
+    face_conf = face_data.get("match_score") if face_data.get("match_score") is not None else face_data.get("match_confidence")
+    face_conf_str = f"Match: {face_conf}%" if face_conf is not None else "Not performed"
+    face_expl = face_data.get("explanation") or "Face comparison telemetry"
+    if not isinstance(face_expl, str):
+        face_expl = str(face_expl)
+    if len(face_expl) > 90:
+        face_expl = face_expl[:90] + "..."
+
+    val_status = val_data.get("overall_status") or val_data.get("status") or "PASSED"
+    passed_count = val_data.get("passed_count")
+    if passed_count is None:
+        passed_count = 5 if val_status == "PASSED" else 0
 
     th_style = ParagraphStyle("THStyle", parent=styles["Normal"], fontName="Helvetica-Bold", fontSize=9, textColor=colors.white)
     
@@ -218,21 +266,21 @@ def generate_pdf_report(case_data: Dict[str, Any], output_filename: str) -> str:
         ],
         [
             Paragraph("Document Tampering (ELA)", normal_text),
-            Paragraph(esc(tamper_data.get("tampering_risk", "LOW")), bold_text),
-            Paragraph(esc(f"{tamper_data.get('model_confidence', 95)}%"), normal_text),
-            Paragraph(esc(tamper_data.get("summary", "Uniform compression across all regions.")[:90] + "..."), normal_text)
+            Paragraph(esc(tamper_data.get("tampering_risk") or "LOW"), bold_text),
+            Paragraph(esc(f"{tamper_data.get('model_confidence') or 95}%"), normal_text),
+            Paragraph(esc(tamper_summary), normal_text)
         ],
         [
             Paragraph("Face Biometrics", normal_text),
-            Paragraph(esc(face_data.get("status", "UNAVAILABLE")), bold_text),
-            Paragraph(esc(f"Match: {face_data.get('match_score', 'N/A')}%" if face_data.get('match_score') is not None else "Not performed"), normal_text),
-            Paragraph(esc(face_data.get("explanation", "Face comparison telemetry")[:90]), normal_text)
+            Paragraph(esc(face_status), bold_text),
+            Paragraph(esc(face_conf_str), normal_text),
+            Paragraph(esc(face_expl), normal_text)
         ],
         [
             Paragraph("Document Validation", normal_text),
-            Paragraph(esc(val_data.get("overall_status", "PASSED")), bold_text),
-            Paragraph(esc(f"{val_data.get('passed_count', 5)} Checks Passed"), normal_text),
-            Paragraph(esc("Watchlist & Format Consistency Checked."), normal_text)
+            Paragraph(esc(val_status), bold_text),
+            Paragraph(esc(f"{passed_count} Checks Passed"), normal_text),
+            Paragraph(esc("Watchlist &amp; Format Consistency Checked."), normal_text)
         ]
     ]
     
@@ -251,13 +299,13 @@ def generate_pdf_report(case_data: Dict[str, Any], output_filename: str) -> str:
     # 5. Officer Review & Decision
     story.append(Paragraph("3. Officer Review &amp; Decision Record", section_heading))
     
-    officer_decision = case_data.get("officer_decision", "CLEARED_FOR_ENTRY")
-    officer_notes = case_data.get("officer_notes", "Standard screening performed. No manual notes recorded.")
+    officer_decision = case_data.get("officer_decision") or "CLEARED_FOR_ENTRY"
+    officer_notes = case_data.get("officer_notes") or "Standard screening performed. No manual notes recorded."
     
     decision_table_data = [
         [Paragraph("<b>Officer Decision:</b>", bold_text), Paragraph(f"<b>{esc(officer_decision)}</b>", ParagraphStyle("DecBold", parent=styles["Normal"], fontName="Helvetica-Bold", fontSize=10, textColor=colors.HexColor("#0284c7")))],
         [Paragraph("<b>Officer Remarks:</b>", bold_text), Paragraph(esc(officer_notes), normal_text)],
-        [Paragraph("<b>Authorized By:</b>", bold_text), Paragraph(f"{esc(case_data.get('officer_name', 'Security Officer'))} (officer@docshield.ai)", normal_text)],
+        [Paragraph("<b>Authorized By:</b>", bold_text), Paragraph(f"{esc(case_data.get('officer_name') or 'Security Officer')} (officer@docshield.ai)", normal_text)],
         [Paragraph("<b>Audit Hash Block:</b>", bold_text), Paragraph("SHA-256 Chained Integrity Verified", normal_text)]
     ]
     
