@@ -111,6 +111,15 @@ const state = {
     recoveryModalOpen: false,
     recoveryWorkId: '',
     recoveryStatus: ''
+  },
+
+  cameraScanner: {
+    isOpen: false,
+    docKey: null,
+    stream: null,
+    facingMode: 'environment',
+    error: null,
+    isLoading: false
   }
 };
 
@@ -221,6 +230,7 @@ function renderApp() {
     <!-- Modals & Drawers -->
     ${renderPipelineExploreModal()}
     ${renderCaseDetailModal()}
+    ${renderCameraScannerModal()}
   `;
 
   initLucide();
@@ -4599,6 +4609,11 @@ window.handleAirlinesStep1Submit = handleAirlinesStep1Submit;
 window.handleAirlinesStep2Submit = handleAirlinesStep2Submit;
 window.triggerAirlinesDocUpload = triggerAirlinesDocUpload;
 window.triggerAirlinesDocScan = triggerAirlinesDocScan;
+window.openCameraScanner = openCameraScanner;
+window.closeCameraScanner = closeCameraScanner;
+window.captureCameraScannerFrame = captureCameraScannerFrame;
+window.switchCameraFacingMode = switchCameraFacingMode;
+window.initCameraScannerStream = initCameraScannerStream;
 window.handleAirlinesDocFileSelected = handleAirlinesDocFileSelected;
 window.handleAirlinesBiometricsFileSelected = handleAirlinesBiometricsFileSelected;
 window.removeAirlinesDoc = removeAirlinesDoc;
