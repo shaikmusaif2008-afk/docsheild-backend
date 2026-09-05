@@ -4088,6 +4088,215 @@ function handleAirlinesStep2Submit(e) {
   renderApp();
 }
 
+// ----------------- LIVE CAMERA DOCUMENT SCANNER MODAL & CONTROLS -----------------
+function renderCameraScannerModal() {
+  const cs = state.cameraScanner;
+  if (!cs || !cs.isOpen) return '';
+
+  const docTitle = state.airlinesFlow?.documents?.[cs.docKey]?.title || 'Identity Document';
+
+  return `
+    <div id="camera_scanner_modal" class="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
+      <div class="relative w-full max-w-xl bg-[#090e17] border border-[#1d2e4a] rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+        <!-- Modal Header -->
+        <div class="p-4 border-b border-[#152033] flex items-center justify-between bg-[#070b14]">
+          <div class="flex items-center space-x-2.5">
+            <div class="w-8 h-8 rounded-lg bg-blue-600/20 border border-blue-500/40 flex items-center justify-center text-blue-400">
+              <i data-lucide="camera" class="w-4 h-4"></i>
+            </div>
+            <div>
+              <h3 class="text-sm font-bold text-white">Live Camera Document Scanner</h3>
+              <p class="text-[11px] text-slate-400">Target: <span class="text-cyan-400 font-medium">${docTitle}</span></p>
+            </div>
+          </div>
+          <button type="button" onclick="closeCameraScanner()" class="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+        </div>
+
+        <!-- Camera Viewport -->
+        <div class="p-4 flex-1 flex flex-col items-center justify-center bg-black/50 overflow-hidden relative min-h-[320px]">
+          ${cs.error ? `
+            <div class="text-center p-6 space-y-3 max-w-sm">
+              <div class="w-12 h-12 rounded-full bg-rose-950/60 border border-rose-800 text-rose-400 flex items-center justify-center mx-auto">
+                <i data-lucide="alert-triangle" class="w-6 h-6"></i>
+              </div>
+              <h4 class="text-sm font-bold text-white">Camera Notice</h4>
+              <p class="text-xs text-slate-300 leading-relaxed">${cs.error}</p>
+              <div class="pt-2 flex items-center justify-center space-x-2">
+                <button type="button" onclick="triggerAirlinesDocUpload('${cs.docKey}'); closeCameraScanner();" class="btn-primary-gradient px-4 py-2 rounded-lg text-xs font-bold text-white">
+                  Upload File Instead
+                </button>
+                <button type="button" onclick="initCameraScannerStream()" class="px-3 py-2 rounded-lg bg-[#0c1322] hover:bg-[#131e36] text-xs font-semibold text-slate-300 border border-[#152033]">
+                  Retry Camera
+                </button>
+              </div>
+            </div>
+          ` : `
+            <div class="relative w-full aspect-[4/3] max-h-[50vh] bg-slate-950 rounded-xl overflow-hidden border-2 border-cyan-500/40 flex items-center justify-center">
+              <video id="camera_scanner_video" autoplay playsinline muted class="w-full h-full object-cover"></video>
+              
+              <!-- Viewfinder Guide Overlay -->
+              <div class="absolute inset-4 sm:inset-6 border-2 border-dashed border-cyan-400/60 rounded-lg pointer-events-none flex flex-col justify-between p-3">
+                <div class="flex justify-between text-[10px] text-cyan-300 font-mono bg-black/40 px-2 py-0.5 rounded w-fit">
+                  <span>ALIGN ${docTitle.toUpperCase()} HERE</span>
+                </div>
+                <div class="text-center text-[10px] text-slate-300 bg-black/50 px-2 py-1 rounded">
+                  Ensure document is clearly visible and in focus
+                </div>
+              </div>
+
+              ${cs.isLoading ? `
+                <div class="absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex flex-col items-center justify-center space-y-2">
+                  <div class="w-7 h-7 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin"></div>
+                  <span class="text-xs text-cyan-300 font-semibold">Connecting to camera stream...</span>
+                </div>
+              ` : ''}
+            </div>
+          `}
+        </div>
+
+        <!-- Modal Footer Actions -->
+        <div class="p-4 border-t border-[#152033] bg-[#070b14] flex items-center justify-between gap-3">
+          <button type="button" onclick="switchCameraFacingMode()" class="px-3 py-2 rounded-lg bg-[#0c1322] hover:bg-[#131e36] text-slate-300 hover:text-white text-xs font-semibold border border-[#152033] transition flex items-center space-x-1.5" title="Flip Camera">
+            <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+            <span class="hidden sm:inline">Flip Camera</span>
+          </button>
+
+          <div class="flex items-center space-x-2">
+            <button type="button" onclick="closeCameraScanner()" class="px-4 py-2 rounded-lg bg-[#0c1322] hover:bg-[#131e36] text-slate-300 text-xs font-semibold border border-[#152033] transition">
+              Cancel
+            </button>
+            <button type="button" onclick="captureCameraScannerFrame()" ${cs.error || cs.isLoading ? 'disabled' : ''} class="btn-primary-gradient px-6 py-2 rounded-lg text-white font-bold text-xs flex items-center space-x-2 shadow-lg shadow-cyan-900/30 disabled:opacity-40">
+              <i data-lucide="camera" class="w-4 h-4"></i>
+              <span>Capture &amp; Analyze</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+async function openCameraScanner(docKey) {
+  state.cameraScanner.isOpen = true;
+  state.cameraScanner.docKey = docKey || 'passport';
+  state.cameraScanner.error = null;
+  state.cameraScanner.isLoading = true;
+  state.cameraScanner.facingMode = (docKey === 'biometrics') ? 'user' : 'environment';
+  renderApp();
+
+  setTimeout(async () => {
+    await initCameraScannerStream();
+  }, 60);
+}
+
+const openCamera = openCameraScanner;
+
+async function initCameraScannerStream() {
+  if (state.cameraScanner.stream) {
+    try {
+      state.cameraScanner.stream.getTracks().forEach(t => t.stop());
+    } catch (e) {}
+    state.cameraScanner.stream = null;
+  }
+
+  const facing = state.cameraScanner.facingMode;
+  const constraints = {
+    video: {
+      facingMode: facing === 'environment' ? { ideal: 'environment' } : 'user',
+      width: { ideal: 1920 },
+      height: { ideal: 1080 }
+    },
+    audio: false
+  };
+
+  try {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      throw new Error("Camera API is not supported on this browser or requires an HTTPS connection.");
+    }
+    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+    state.cameraScanner.stream = stream;
+    state.cameraScanner.isLoading = false;
+    state.cameraScanner.error = null;
+    renderApp();
+
+    setTimeout(() => {
+      const video = document.getElementById('camera_scanner_video');
+      if (video) {
+        video.srcObject = stream;
+        video.play().catch(e => console.warn("Video play error:", e));
+      }
+    }, 60);
+  } catch (err) {
+    console.warn("Primary camera stream warning:", err);
+    try {
+      const fallbackStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      state.cameraScanner.stream = fallbackStream;
+      state.cameraScanner.isLoading = false;
+      state.cameraScanner.error = null;
+      renderApp();
+
+      setTimeout(() => {
+        const video = document.getElementById('camera_scanner_video');
+        if (video) {
+          video.srcObject = fallbackStream;
+          video.play().catch(e => console.warn("Fallback video play error:", e));
+        }
+      }, 60);
+    } catch (fallbackErr) {
+      state.cameraScanner.isLoading = false;
+      state.cameraScanner.error = fallbackErr.message || "Unable to access camera. Please allow camera permissions or upload an image file.";
+      renderApp();
+    }
+  }
+}
+
+async function switchCameraFacingMode() {
+  state.cameraScanner.facingMode = (state.cameraScanner.facingMode === 'environment') ? 'user' : 'environment';
+  state.cameraScanner.isLoading = true;
+  renderApp();
+  await initCameraScannerStream();
+}
+
+function closeCameraScanner() {
+  if (state.cameraScanner.stream) {
+    try {
+      state.cameraScanner.stream.getTracks().forEach(t => t.stop());
+    } catch (e) {}
+    state.cameraScanner.stream = null;
+  }
+  state.cameraScanner.isOpen = false;
+  state.cameraScanner.docKey = null;
+  state.cameraScanner.error = null;
+  renderApp();
+}
+
+async function captureCameraScannerFrame() {
+  const video = document.getElementById('camera_scanner_video');
+  if (!video) return;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = video.videoWidth || 1280;
+  canvas.height = video.videoHeight || 720;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+  canvas.toBlob(async blob => {
+    const docKey = state.cameraScanner.docKey || 'passport';
+    const fileName = `${docKey}_camera_scan_${Date.now()}.jpg`;
+    const file = new File([blob], fileName, { type: 'image/jpeg' });
+
+    closeCameraScanner();
+
+    if (docKey === 'biometrics') {
+      await processAirlinesBiometricsFile(file);
+    } else {
+      await processAirlinesDocFile(file, docKey);
+    }
+  }, 'image/jpeg', 0.95);
+}
+
 function triggerAirlinesDocUpload(docKey) {
   state.airlinesFlow.activeUploadDocKey = docKey;
   if (docKey === 'biometrics') {
@@ -4106,25 +4315,10 @@ function triggerAirlinesDocUpload(docKey) {
 }
 
 function triggerAirlinesDocScan(docKey) {
-  state.airlinesFlow.activeUploadDocKey = docKey;
-  if (docKey === 'biometrics') {
-    const cameraInput = document.getElementById('airlines_biometrics_camera_input') || document.getElementById('airlines_biometrics_file_input');
-    if (cameraInput) {
-      cameraInput.value = '';
-      cameraInput.click();
-    }
-  } else {
-    const cameraInput = document.getElementById('airlines_doc_camera_input') || document.getElementById('airlines_doc_file_input');
-    if (cameraInput) {
-      cameraInput.value = '';
-      cameraInput.click();
-    }
-  }
+  openCameraScanner(docKey);
 }
 
-async function handleAirlinesDocFileSelected(e) {
-  const file = e.target.files && e.target.files[0];
-  const docKey = state.airlinesFlow.activeUploadDocKey;
+async function processAirlinesDocFile(file, docKey) {
   if (!file || !docKey) return;
 
   const doc = state.airlinesFlow.documents[docKey];
@@ -4185,6 +4379,40 @@ async function handleAirlinesDocFileSelected(e) {
   }
 
   renderApp();
+}
+
+async function processAirlinesBiometricsFile(file) {
+  if (!file) return;
+
+  const bio = state.airlinesFlow.documents.biometrics;
+  bio.fileName = file.name;
+  bio.status = 'ANALYZING';
+  renderApp();
+
+  try {
+    const formData = new FormData();
+    formData.append('live_image', file);
+
+    const uploadRes = await fetch(api.url('/api/screening/upload'), {
+      method: 'POST',
+      body: formData
+    });
+
+    const uploadData = await uploadRes.json();
+    bio.filePath = uploadData.doc_image_path || file.name;
+    bio.status = 'ANALYZED';
+  } catch (err) {
+    console.error('Airlines biometrics upload error:', err);
+    bio.status = 'UPLOADED';
+  }
+
+  renderApp();
+}
+
+async function handleAirlinesDocFileSelected(e) {
+  const file = e.target.files && e.target.files[0];
+  const docKey = state.airlinesFlow.activeUploadDocKey;
+  await processAirlinesDocFile(file, docKey);
 }
 
 async function handleAirlinesBiometricsFileSelected(e) {
@@ -4609,6 +4837,15 @@ window.handleAirlinesStep1Submit = handleAirlinesStep1Submit;
 window.handleAirlinesStep2Submit = handleAirlinesStep2Submit;
 window.triggerAirlinesDocUpload = triggerAirlinesDocUpload;
 window.triggerAirlinesDocScan = triggerAirlinesDocScan;
+window.openCamera = openCameraScanner;
+window.openCameraScanner = openCameraScanner;
+window.renderCameraScannerModal = renderCameraScannerModal;
+window.closeCameraScanner = closeCameraScanner;
+window.captureCameraScannerFrame = captureCameraScannerFrame;
+window.switchCameraFacingMode = switchCameraFacingMode;
+window.initCameraScannerStream = initCameraScannerStream;
+window.processAirlinesDocFile = processAirlinesDocFile;
+window.processAirlinesBiometricsFile = processAirlinesBiometricsFile;
 window.openCameraScanner = openCameraScanner;
 window.closeCameraScanner = closeCameraScanner;
 window.captureCameraScannerFrame = captureCameraScannerFrame;
