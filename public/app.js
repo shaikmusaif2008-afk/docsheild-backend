@@ -3444,9 +3444,11 @@ function renderAirlinesWorkflowView() {
 
   return `
     <div class="max-w-4xl mx-auto space-y-6 pb-16">
-      <!-- Hidden File Inputs -->
+      <!-- Hidden File & Camera Capture Inputs -->
       <input type="file" id="airlines_doc_file_input" class="hidden" accept=".jpg,.jpeg,.png,.pdf" onchange="handleAirlinesDocFileSelected(event)" />
+      <input type="file" id="airlines_doc_camera_input" class="hidden" accept="image/*" capture="environment" onchange="handleAirlinesDocFileSelected(event)" />
       <input type="file" id="airlines_biometrics_file_input" class="hidden" accept=".jpg,.jpeg,.png" onchange="handleAirlinesBiometricsFileSelected(event)" />
+      <input type="file" id="airlines_biometrics_camera_input" class="hidden" accept="image/*" capture="user" onchange="handleAirlinesBiometricsFileSelected(event)" />
 
       <!-- Domain Header Banner -->
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -4078,14 +4080,6 @@ function handleAirlinesStep2Submit(e) {
 
 function triggerAirlinesDocUpload(docKey) {
   state.airlinesFlow.activeUploadDocKey = docKey;
-  const input = document.getElementById('airlines_doc_file_input');
-  if (input) {
-    input.value = '';
-    input.click();
-  }
-}
-
-function triggerAirlinesDocScan(docKey) {
   if (docKey === 'biometrics') {
     const input = document.getElementById('airlines_biometrics_file_input');
     if (input) {
@@ -4093,7 +4087,28 @@ function triggerAirlinesDocScan(docKey) {
       input.click();
     }
   } else {
-    triggerAirlinesDocUpload(docKey);
+    const input = document.getElementById('airlines_doc_file_input');
+    if (input) {
+      input.value = '';
+      input.click();
+    }
+  }
+}
+
+function triggerAirlinesDocScan(docKey) {
+  state.airlinesFlow.activeUploadDocKey = docKey;
+  if (docKey === 'biometrics') {
+    const cameraInput = document.getElementById('airlines_biometrics_camera_input') || document.getElementById('airlines_biometrics_file_input');
+    if (cameraInput) {
+      cameraInput.value = '';
+      cameraInput.click();
+    }
+  } else {
+    const cameraInput = document.getElementById('airlines_doc_camera_input') || document.getElementById('airlines_doc_file_input');
+    if (cameraInput) {
+      cameraInput.value = '';
+      cameraInput.click();
+    }
   }
 }
 
