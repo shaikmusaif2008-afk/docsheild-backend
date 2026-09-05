@@ -4769,7 +4769,28 @@ function airlinesNextPerson() {
 }
 
 function downloadAirlinesReport() {
-  alert("Dossier Generated: Airlines Pre-Boarding Dossier exported to cryptographically signed PDF format.");
+  const flow = state.airlinesFlow;
+  const res = flow?.screeningResult;
+  const caseId = res?.caseId || state.historyList?.[0]?.case_id;
+
+  if (!caseId) {
+    if (state.airlinesFlow) {
+      state.airlinesFlow.errorMessage = "Unable to download dossier: No completed screening case ID found. Please complete screening first.";
+      renderApp();
+    } else {
+      alert("Unable to download dossier: No completed screening case ID found.");
+    }
+    return;
+  }
+
+  const downloadUrl = api.url(`/api/report/${encodeURIComponent(caseId)}`);
+  const link = document.createElement('a');
+  link.href = downloadUrl;
+  link.download = `DocShield_Report_${caseId}.pdf`;
+  link.target = '_blank';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 }
 
 async function saveAirlinesToHistory() {
